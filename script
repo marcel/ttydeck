@@ -1,0 +1,247 @@
+#!/usr/bin/ruby
+
+reflection_dir = "#{ENV['GOMISC']}/benchmarks/reflection/map/pprof"
+benchmark_test = cat(File.join(reflection_dir, "../benchmark_test.go"))
+jit_dir = ENV['JIT']
+jit_bench_dir = File.join(jit_dir, "benchmarks")
+media_structs = cat(File.join(jit_dir, "fixtures/media/media.go"))
+
+step do
+  title("The Cost of Reflection in Go", color: :money)
+end
+
+step "First: A Trivial Example" do
+  benchmark_test.
+    grep("-A 3 'type Person'").
+    syntax_highlight.
+    print
+    
+    puts 
+    
+  benchmark_test.
+    grep("-A 7 'var collection'").
+    syntax_highlight.
+    print
+
+  puts "..."
+end
+
+step "Produce a Slice of Full Names" do
+  sub_heading("Standard Go Way")
+  
+  benchmark_test.
+    grep("-A 6 'func forLoop'").
+    syntax_highlight.
+    print
+end
+
+step do
+  sub_heading("With Reflection")
+  
+  benchmark_test.
+    grep("-A 4 'func mapConcat'").
+    syntax_highlight.
+    print
+end
+
+step "Benchmark: For Loop vs Map", dir: reflection_dir do
+  benchmark_test.
+    grep("-A 5 'func Benchmark'").
+    syntax_highlight.
+    print
+    
+    puts
+    
+  cat("*cpu.1.bench").
+    highlight("Loop", color: :green, full_line: true).
+    highlight("Map", color: :red, full_line: true).
+    indent.
+    print
+    
+    puts
+    
+    "5x Slower\t3x More Garbage".
+      highlight('.', color: :yellow).
+      indent.
+      print
+end
+
+step "Sources of allocations in Map", dir: reflection_dir do
+  pprof("-text -alloc_space ../map.test map.mem.0").
+    highlight("reflect\\..*$", color: :red).
+    print
+end
+
+step "Sources of allocation in Map --cumulative", dir: reflection_dir do
+  pprof("-cum -text -alloc_space ../map.test map.mem.0").
+    highlight("reflect\\.", color: :red, full_line: true).
+    highlight("0%[ ]*0%[  ]*64", color: :green, full_line: true).
+    print
+end
+
+step do
+  benchmark_test.
+    grep("-A 14 'func mapSlice'").
+    syntax_highlight.
+    print
+end
+
+step "Visualization of CPU time", dir: reflection_dir do
+  wait
+  cmd "open *cpu.1.svg"
+end
+
+# puts "Time spent in reflect for Map"
+
+# puts "Time spent in runtime for For Loop"
+
+step "Visualization of memory", dir: reflection_dir do
+  wait
+  cmd "open *mem.0.svg"
+end
+
+# puts "% of time spent in concat between the two"
+
+
+step nil, dir: reflection_dir do
+  "-> list mapSlice".
+    highlight(".", color: :yellow, full_line: true).
+    print
+  
+  system "go tool pprof -alloc_space ../map.test map.mem.0"
+end
+
+step "Observation: Reflection is slow because it allocates a lot of memory" do
+end
+
+step "Ok...let's just avoid reflection..." do
+end
+
+step nil, dir: jit_dir, section: :json do
+  title("JSON", color: :json)
+  
+  puts
+  
+  route = cat("fixtures/navigation/example.json")
+  album = cat("fixtures/media/example.json")
+    
+  side_by_side(route.head(25), album.head(25)).
+    syntax_highlight(lang: "json").
+    print
+end
+
+step "Encoding a struct as JSON" do
+  code =<<-CODE
+  type Person struct {
+    First string `json:"first_name"`
+    Last  string `json:"last_name"`
+  }
+  
+  person := Person{"Marcel", "Molina"}
+  
+  bytes, err := json.Marshal(&person)
+  CODE
+  
+  code.syntax_highlight.print
+end
+
+step "From encoding/json/encode.go" do
+  code =<<-CODE
+  func (e *encodeState) marshal(v interface{}, opts encOpts) (err error) {
+    // ...
+  	e.reflectValue(reflect.ValueOf(v), opts)
+  	return nil
+  }
+  CODE
+  
+  code.syntax_highlight.print
+end
+
+step "Let's profile `json.Marshal(&route)`", dir: jit_bench_dir do
+  [
+    " Inherent Work ".highlight('.', color: :green),
+    " Overhead ".highlight('.', color: :red),
+    " Overhead Tax ".highlight('.', color: :yellow)
+  ].join(" ").print
+  
+  puts
+  
+  pprof("-text -cum benchmarks.test prof.reflect.nav.cpu.0").
+    head(27).
+    highlight("encoding\/json\.[^M]", color: :red, full_line: true).
+    highlight("bytes", color: :green, full_line: true).
+    highlight("runtime.(?:m|gc)", color: :yellow, full_line: true).
+    print
+end
+
+step "Let's take a deeper look", dir: jit_bench_dir do
+  instruction('1. list \-fm').print
+  instruction('2. list Encoder\).encode').print
+  
+  puts
+  
+  system "go tool pprof benchmarks.test prof.reflect.nav.cpu.0"
+end
+
+step "Visualize % of inherent work done", dir: jit_bench_dir do
+  instruction("encoding/json vs runtime.m").print
+    
+  wait
+  
+  cmd "open prof.reflect.nav.cpu.0.svg"
+end
+
+step "80% overhead / 20% inherent work" do
+end
+
+step "Roll your own with json.Marshaler interface", section: :marshaler, dir: jit_dir do
+  iface_code = <<-CODE
+  type Marshaler interface {
+    MarshalJSON() ([]byte, error)
+  }
+  CODE
+  
+  iface_code.syntax_highlight.print
+end
+
+step do
+  sub_heading("For a struct like this...")
+  
+  media_structs.
+    grep("-A 12 'type Album struct'").
+    syntax_highlight.
+    print
+    
+  wait
+  
+  stub_heading("...we'd have to write a method like this")
+    
+  code = <<-CODE
+  func (a *Album) MarshalJSON() ([]byte, error) {
+    buf := new(bytes.Buffer)
+    
+    buf.WriteByte('{')
+    
+    buf.WriteString(fmt.Sprintf("\"album_type\": \"%s\"", a.AlbumType)
+    buf.WriteByte(',')
+    
+    buf.WriteByte('[')
+    for _, artist := range a.Artists {
+      
+    }
+    buf.WriteByte(']')
+    
+    buf.WriteByte('}')
+  }
+  CODE
+end
+
+step do
+  sub_heading("That's a ton of work")
+  puts
+  sub_heading("But it could theoretically be 5x faster")
+end
+
+step  do
+  title("The End", color: :closing_credits)
+end

@@ -1,0 +1,239 @@
+#!/usr/bin/env ruby
+
+require 'open3'
+
+Signal.trap("INT") { 
+  exit
+}
+
+class PresentationComposer
+  class << self
+    def run(start_at, &block)
+      new(&block).run(start_at)
+    end
+    
+    def load(file, start_at = nil)
+      new.load(IO.read(file)).run(start_at)
+    end
+  end
+
+  attr_reader :steps, :current_step
+  def initialize(&block)
+    @steps = []
+    @current_step = 0
+    instance_eval &block if block
+  end
+  
+  def load(code)
+    instance_eval(code)
+    self
+  end
+
+  def step(heading = nil, options = {}, &block)
+    steps.push(Step.new(heading, block, options))
+  end
+
+  def cat(args)
+    cmd "cat #{args}"
+  end
+
+  def pprof(args)
+    cmd "go tool pprof #{args}"
+  end
+
+  def print_heading(text)
+    text.
+      highlight(".", color: :blue, full_line: true).
+      print
+
+    puts
+  end
+  
+  def sub_heading(text)
+    text.
+      highlight('.', color: :subheading).
+      indent.
+      print
+      
+      puts
+  end
+  
+  def instruction(text)
+    text.
+      highlight(".", color: :yellow).
+      indent
+  end
+
+  def cmd(string) 
+    %x[#{string}]
+  end
+
+  def wait
+    STDIN.getc
+  end
+  
+  def tty_size
+    `tput cols`.chomp.to_i
+  end
+  
+  def title(text, options = {})
+    figleted = text.figlet
+
+    figleted.
+      highlight('.', options).
+      indent((tty_size / 2).to_i - (figleted.lines.first.size / 2)).
+      print
+  end
+  
+  def side_by_side(lhs, rhs)
+    column_width = tty_size / 2
+    lhs_lines = lhs.lines.map {|l| l.chomp.ljust(column_width) }
+    
+    lhs_lines.zip(rhs.lines.first(lhs_lines.size)).map do |l, r|
+      l + " " + r
+    end.join
+  end
+  
+  def divider
+    step_number = "#{current_step} "
+    step = steps[current_step]
+    step_number << "#{step.section} " if step.section
+    
+    (step_number + ("—" * (tty_size - step_number.size))).
+      highlight('.', color: :light_grey).
+      print
+  end
+  
+  def resolve_location(starting_at)
+    case starting_at
+    when /^\d+$/
+      starting_at.to_i
+    when /^\w+/
+      s = steps.find {|s| s.section == starting_at.to_sym }
+      s ? steps.index(s) : 0
+    else
+      0
+    end
+  end
+
+  def run(starting_at)
+    starting_index = resolve_location(starting_at)
+    @current_step = starting_index
+    
+    steps.each_with_index do |step, index|
+      if index >= starting_index
+        if index > 0
+          divider
+          puts
+        end
+        print_heading(step.heading) if step.heading
+        if step.executation_dir 
+          Dir.chdir(step.executation_dir) do
+            instance_eval(&step.code)
+          end
+        else
+          instance_eval(&step.code)
+        end
+        @current_step += 1
+        wait
+      end
+    end
+  end
+
+  class Step
+    attr_reader :heading, :code, :options
+
+    def initialize(heading, code, options)
+      @heading = heading
+      @code = code
+      @options = options
+    end
+    
+    def executation_dir
+      options[:dir]
+    end
+    
+    def section
+      options[:section]
+    end
+  end
+end
+
+class String
+  def pipe(rhs)
+    stdin, stdout, _ = Open3.popen2(rhs)
+    stdin.puts self
+    stdin.close
+    out = stdout.read
+    stdout.close
+    out
+  end
+  
+  def grep(args)
+    pipe("grep #{args}")
+  end
+
+  def indent(columns = 3)
+    split("\n").map {|line| 
+      (" " * columns) + line
+    }.join("\n")
+  end
+
+  COLOR = {
+    red: '1;37;41',
+    green:  '1;37;42',
+    yellow: '1;37;43',
+    #blue:  '4;37;104',
+    blue: '4;48;5;32',
+    underline: '4;37;49',
+    money: '48;5;22',
+    light_grey: '38;5;238',
+    closing_credits: '48;5;241',
+    subheading: '1;48;5;39',
+    json: '48;5;202'
+  }
+  
+  def colorize(text, color)
+    "\e[#{COLOR[color]}m#{text}\e[0m"
+  end
+
+  def highlight(pattern, options = {})
+    options[:color] ||= :green
+    options[:full_line] ||= false
+    
+    pattern = options[:full_line] ? /^.*#{pattern}.*$/ : /#{pattern}/
+    lines.map do |line|
+      line.gsub(pattern) do |match|
+        colorize(match, options[:color])
+      end
+    end.join
+  end
+  
+  def figlet
+    pipe("figlet -f thin -w 200")
+  end
+  
+  def head(number = 10)
+    lines.first(number).join
+  end
+  
+  def tail(number = 10)
+    lines.last(number).join
+  end
+
+  def syntax_highlight(options = {})
+    language = options[:lang] ||= "go"
+    
+    pipe("highlight --stdout -O xterm256 --syntax #{language} -l -s Candy -t 4")
+  end
+
+  def print
+    puts self
+  end
+end
+
+if __FILE__ == $0
+  PresentationComposer.load(*ARGV.first(2))
+  
+  # TODO flag to print out a summary of sections
+end
