@@ -5,6 +5,8 @@ benchmark_test = cat(File.join(reflection_dir, "../benchmark_test.go"))
 jit_dir = ENV['JIT']
 jit_bench_dir = File.join(jit_dir, "benchmarks")
 media_structs = cat(File.join(jit_dir, "fixtures/media/media.go"))
+nav_encoder = cat(File.join(jit_dir, "fixtures/navigation/json_encoders.go"))
+encoding_buffer = cat(File.join(jit_dir, "encoding/buffer.go"))
 
 step do
   title("The Cost of Reflection in Go", color: :money)
@@ -194,7 +196,7 @@ end
 step "80% overhead / 20% inherent work" do
 end
 
-step "Roll your own with json.Marshaler interface", section: :marshaler, dir: jit_dir do
+step "Roll your own encoder with json.Marshaler interface", section: :marshaler, dir: jit_dir do
   iface_code = <<-CODE
   type Marshaler interface {
     MarshalJSON() ([]byte, error)
@@ -214,26 +216,48 @@ step do
     
   wait
   
-  stub_heading("...we'd have to write a method like this")
+  sub_heading("...we'd have to write a method like this")
     
   code = <<-CODE
   func (a *Album) MarshalJSON() ([]byte, error) {
-    buf := new(bytes.Buffer)
-    
-    buf.WriteByte('{')
-    
-    buf.WriteString(fmt.Sprintf("\"album_type\": \"%s\"", a.AlbumType)
-    buf.WriteByte(',')
-    
-    buf.WriteByte('[')
-    for _, artist := range a.Artists {
+      buf := new(bytes.Buffer)
       
-    }
-    buf.WriteByte(']')
-    
-    buf.WriteByte('}')
+      buf.WriteByte('{')
+      buf.WriteString(fmt.Sprintf("\\"album_type\\": \\"%s\\"", a.AlbumType))
+      buf.WriteByte(',')
+      buf.WriteString(fmt.Sprintf("\\"popularity\\": \\"%d\\"", a.Popularity))
+      buf.WriteByte('[')
+      for _, artist := range a.Artists {
+        // encode artist
+      }
+      buf.WriteByte(']')
+      buf.WriteByte(',')
+      buf.WriteByte('[')
+      for _, market := range a.AvailableMarkets {
+        // encode market
+      }
+      buf.WriteByte(']')
+      buf.WriteByte(',')
+      buf.WriteByte('[')
+      for _, genre := range a.Genres {
+        // encode genre
+      }
+      buf.WriteByte(']')
+      buf.WriteByte(',')
+      
+      // plus Images, Label, Name, ReleaseDate, Tracks, PopularityByMarket
+      
+      buf.WriteByte('}')
+      
+      return buf.Bytes(), nil
   }
   CODE
+  
+  code.syntax_highlight.print
+  
+  wait
+  
+  sub_heading("...and we'd have to do the same for Artist, Track, Image, etc...")
 end
 
 step do
@@ -242,6 +266,118 @@ step do
   sub_heading("But it could theoretically be 5x faster")
 end
 
-step  do
+step nil, section: :jitjson do
+  title("jitjson", color: :jitjson)
+  cmd("jitjson --help").indent.print
+end
+
+step nil, dir: jit_dir do
+  sub_heading("% jitjson list")
+  
+  cmd("jitjson list").indent.print
+  
+  wait
+  
+  sub_heading("% jitjson list fixtures/navigation --full")
+  
+  cmd("jitjson list fixtures/navigation --full").indent.print
+end
+
+step nil, section: :gen do
+  sub_heading("% jitjson gen fixtures/navigation")
+    
+  nav_encoder.
+    head(21).
+    syntax_highlight.
+    print
+    
+    "// ... etc".indent.print
+end
+
+step nil, section: :routeStruct do
+  nav_encoder.
+    grep("-A 20 'routeStruct\(route Route'").
+    syntax_highlight.
+    print
+end
+
+step nil, section: :encodingBuffer do
+  sub_heading("github.com/marcel/jitjson/encoding/buffer.go")
+  
+  encoding_buffer.
+    grep("'func \('").
+    syntax_highlight.
+    print
+    
+  wait
+    
+  sub_heading("Most are straight forward *and* optimal")
+  
+  encoding_buffer.
+    grep("-A 2 'Comma\(\)'").
+    syntax_highlight.
+    print
+    
+    puts
+    
+  encoding_buffer.
+    grep("-A 3 ' Float64\(f'").
+    syntax_highlight.
+    print
+  
+  wait
+  
+  sub_heading("Some suffer to be optimal")
+  
+  encoding_buffer.
+    grep("-A 12 'quote writes'").
+    syntax_highlight.
+    print
+end
+
+step "So how do we generate this code?", section: :codegenhowto do
+end
+
+step nil, section: :turtles do
+  title("Turtles All the Way Down", color: :money)
+  
+  puts 
+  
+  turtles =<<-TURTLES
+                     _.._    _ 
+                   ."\\__/"./`_\\
+                 _/__<__>__\\/
+               `"/_/""""\\_\\\\
+                            __
+                 .,-;-;-,. /'_\\
+               _/_/_/_|_\\_\\) /
+             '-<_><_><_><_>=/\\
+               `/_/====/_/-'\\_\\
+                ""     ""    ""
+                  __....__
+             .-~~/  \\__/  \\~~-.
+            /_/``\\__/  \\__/``\\_\\.--.
+           /  \\__/  \\__/  \\__/  \\   o`.
+       `==/\\__/__\\__/__\\__/__\\__/\\`'--'
+          ~/__/__/^^^^^^^^\\__\\__\\~
+  .---.           _....._
+ /  p  `\\     .-""`:     :`"-.
+ |__   - |  ,'     .     '    ',
+  ._>    \\ /:      :     ;      :,
+   '-.    '\\`.     .     :     '  \\
+      `.   | .'._.' '._.' '._.'.  |
+        `;-\\.   :     :     '   '/,__,
+        .-'`'._ '     .     : _.'.__.'
+       ((((-'/ `";--..:..--;"` \\
+           .'   /           \\   \\
+          ((((-'           ((((-'
+TURTLES
+
+  
+  longest_line = turtles.lines.max {|l| l.size }
+  turtles.indent((tty_size / 2) - longest_line.size / 2).print
+end
+
+step do
   title("The End", color: :closing_credits)
 end

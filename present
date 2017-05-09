@@ -190,7 +190,8 @@ class String
     light_grey: '38;5;238',
     closing_credits: '48;5;241',
     subheading: '1;48;5;39',
-    json: '48;5;202'
+    json: '48;5;202',
+    jitjson: '48;5;150'
   }
   
   def colorize(text, color)
@@ -236,4 +237,5 @@ if __FILE__ == $0
   PresentationComposer.load(*ARGV.first(2))
   
   # TODO flag to print out a summary of sections
+  # TODO Generate markdown version (wouldn't be able to include the interactive parts)
 end
