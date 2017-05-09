@@ -4,6 +4,8 @@ reflection_dir = "#{ENV['GOMISC']}/benchmarks/reflection/map/pprof"
 benchmark_test = cat(File.join(reflection_dir, "../benchmark_test.go"))
 jit_dir = ENV['JIT']
 jit_bench_dir = File.join(jit_dir, "benchmarks")
+string_concat_dir = "#{ENV['GOMISC']}/benchmarks/stringconcat"
+string_concat = cat(File.join(string_concat_dir, "benchmark_string_concat_test.go"))
 media_structs = cat(File.join(jit_dir, "fixtures/media/media.go"))
 nav_encoder = cat(File.join(jit_dir, "fixtures/navigation/json_encoders.go"))
 encoding_buffer = cat(File.join(jit_dir, "encoding/buffer.go"))
@@ -12,7 +14,15 @@ step do
   title("The Cost of Reflection in Go", color: :money)
 end
 
-step "First: A Trivial Example" do
+step do
+  sub_heading("Usually high complexity cost and performance cost")
+  
+  wait
+  
+  sub_heading("What about Go?")
+end
+
+step "Let's start with a simple example" do
   benchmark_test.
     grep("-A 3 'type Person'").
     syntax_highlight.
@@ -25,23 +35,33 @@ step "First: A Trivial Example" do
     syntax_highlight.
     print
 
-  puts "..."
+  puts
+  " ... etc".indent.print
 end
 
 step "Produce a Slice of Full Names" do
-  sub_heading("Standard Go Way")
+  wait
   
+  sub_heading("Standard Go Way")
+    
   benchmark_test.
     grep("-A 6 'func forLoop'").
     syntax_highlight.
     print
-end
 
-step do
+  wait
+    
   sub_heading("With Reflection")
   
   benchmark_test.
     grep("-A 4 'func mapConcat'").
+    syntax_highlight.
+    print
+end
+
+step "Map: interface{} and reflect.Value" do
+  benchmark_test.
+    grep("-A 22 'func Map\('").
     syntax_highlight.
     print
 end
@@ -53,6 +73,10 @@ step "Benchmark: For Loop vs Map", dir: reflection_dir do
     print
     
     puts
+  
+  wait
+  
+  sub_heading("Results:")
     
   cat("*cpu.1.bench").
     highlight("Loop", color: :green, full_line: true).
@@ -90,20 +114,27 @@ end
 
 step "Visualization of CPU time", dir: reflection_dir do
   wait
-  cmd "open *cpu.1.svg"
+  
+  instruction("For Loop: Time spent in runtime").print
+  wait
+  cmd "open for*cpu.1.svg"
+  
+  wait
+  instruction("Map: Time spent in reflect vs runtime").print
+  wait
+  cmd "open *map*cpu.1.svg"
 end
-
-# puts "Time spent in reflect for Map"
-
-# puts "Time spent in runtime for For Loop"
 
 step "Visualization of memory", dir: reflection_dir do
+  instruction("For Loop: % of allocations from concat").print
   wait
-  cmd "open *mem.0.svg"
+  cmd "open for*mem.0.svg"
+  wait
+  
+  instruction("Map: % of allocations from concat").print
+  wait
+  cmd "open *map*mem*.0.svg"
 end
-
-# puts "% of time spent in concat between the two"
-
 
 step nil, dir: reflection_dir do
   "-> list mapSlice".
@@ -113,10 +144,36 @@ step nil, dir: reflection_dir do
   system "go tool pprof -alloc_space ../map.test map.mem.0"
 end
 
-step "Observation: Reflection is slow because it allocates a lot of memory" do
-end
-
-step "Ok...let's just avoid reflection..." do
+step nil, section: :trash do
+  center("Observation: Reflection adds lots allocations and garbage").
+    ljust(tty_size).
+    highlight('.', color: :subheading).
+    print
+  
+  puts 
+  
+  trash =<<-TRASH
+       ________________   ___/-\\___     ___/-\\___     ___/-\\___
+     / /             ||  |---------|   |---------|   |---------|
+    / /              ||   |       |     | | | | |     |   |   |
+   / /             __||   |       |     | | | | |     | | | | |
+  / /   \\\\        I  ||   |       |     | | | | |     | | | | |
+ (-------------------||   | | | | |     | | | | |     | | | | |
+ ||               == ||   |_______|     |_______|     |_______|
+ ||   GO REFLECTION  | =============================================
+ ||          ____    |                                ____      |
+( | o      / ____ \\                                 / ____ \\    |)
+ ||      / / . . \\ \\                              / / . . \\ \\   |
+[ |_____| | .   . | |____________________________| | .   . | |__]
+          | .   . |                                | .   . |
+           \\_____/                                  \\_____/
+  TRASH
+  
+  center(trash).print
+  
+  wait 
+  
+  sub_heading("Ok...let's just avoid reflection...")
 end
 
 step nil, dir: jit_dir, section: :json do
@@ -193,11 +250,27 @@ step "Visualize % of inherent work done", dir: jit_bench_dir do
   cmd "open prof.reflect.nav.cpu.0.svg"
 end
 
-step "80% overhead / 20% inherent work" do
+step do
+  inherent_work = " 20% Inherent Work "
+  overhead = " 80% Overhead ".ljust(inherent_work.size * 4)
+  
+  ("[" + ("+" * (inherent_work.size - 1)) + ("-" * (overhead.size - 1)) + "]").indent.print
+  
+  [
+    inherent_work.highlight('.', color: :green),
+    overhead.highlight('.', color: :red)
+  ].join.indent.print
 end
 
-step "Roll your own encoder with json.Marshaler interface", section: :marshaler, dir: jit_dir do
+step "What are our options?", section: :marshaler, dir: jit_dir do
+  
+  wait
+  
+  sub_heading("Roll your own encoder with json.Marshaler interface")
+  
   iface_code = <<-CODE
+  // Marshaler is the interface implemented by types that
+  // can marshal themselves into valid JSON.
   type Marshaler interface {
     MarshalJSON() ([]byte, error)
   }
@@ -262,6 +335,14 @@ end
 
 step do
   sub_heading("That's a ton of work")
+  
+  wait
+  
+  inherent_work = " 100% Inherent Work "
+  overhead = "              ".ljust(inherent_work.size * 4)
+  ("[" + ("+" * (inherent_work.size - 1)) + ("+" * (overhead.size - 1)) + "]").indent.print
+  inherent_work.ljust(inherent_work.size * 5).highlight('.', color: :green).indent.print
+  puts
   puts
   sub_heading("But it could theoretically be 5x faster")
 end
@@ -302,7 +383,7 @@ step nil, section: :routeStruct do
 end
 
 step nil, section: :encodingBuffer do
-  sub_heading("github.com/marcel/jitjson/encoding/buffer.go")
+  file_path("github.com/marcel/jitjson/encoding/buffer.go")
   
   encoding_buffer.
     grep("'func \('").
@@ -311,7 +392,7 @@ step nil, section: :encodingBuffer do
     
   wait
     
-  sub_heading("Most are straight forward *and* optimal")
+  sub_heading("Most encoders are straight forward *and* optimal")
   
   encoding_buffer.
     grep("-A 2 'Comma\(\)'").
@@ -327,7 +408,79 @@ step nil, section: :encodingBuffer do
   
   wait
   
-  sub_heading("Some suffer to be optimal")
+  sub_heading("String concatenation though has inefficiencies to work around")
+  
+  wait
+  
+  code =<<-CODE
+  // 
+  func (e *Buffer) Quote(s string) {
+    s.WriteByte('"')
+    s.WriteString(s)
+    s.WriteByte('"')
+  }
+  CODE
+  
+  code.syntax_highlight.print
+end
+
+step nil, dir: string_concat_dir, section: :stringconcat do
+  
+  sub_heading("Sprintf")
+  
+  string_concat.
+    grep("-A 3 Sprintf").
+    syntax_highlight.
+    print
+    
+  wait
+  
+  sub_heading("ByteBuffer (pre-allocated & re-used)")
+  
+  string_concat.
+    grep("-A 12 ByteBuffer").
+    syntax_highlight.
+    print
+    
+  wait
+  
+  sub_heading("string + string")
+  
+  string_concat.
+    grep("-A 5 Plus").
+    syntax_highlight.
+    print
+  
+  wait
+  
+  sub_heading("[]byte (pre-allocated & re-used)")
+  
+  string_concat.
+    grep("-A 5 Slice").
+    syntax_highlight.
+    print
+  
+  wait
+  
+  string_concat.
+    grep("-A 17 'func quo'").
+    syntax_highlight.
+    print
+    
+  wait
+  
+  sub_heading("Results")
+  
+  cmd("cat cpu.0.bench").
+    indent.
+    grep("Benchmark").
+    highlight('.*Sprintf.*', color: :red, fill_line: true).
+    highlight('.*ByteBuffer.*', color: :json, fill_line: true).
+    highlight('.*Plus.*', color: :blue, fill_line: true).
+    highlight('.*Slice.*', color: :green, fille_line: true).
+    print
+  
+  wait
   
   encoding_buffer.
     grep("-A 12 'quote writes'").
@@ -335,31 +488,31 @@ step nil, section: :encodingBuffer do
     print
 end
 
-step "So how do we generate this code?", section: :codegenhowto do
-end
-
-step nil, section: :turtles do
-  title("Turtles All the Way Down", color: :money)
+step "So how do we generate this code?", section: :turtles do
   
-  puts 
+  wait
   
   turtles =<<-TURTLES
                      _.._    _ 
                    ."\\__/"./`_\\
                  _/__<__>__\\/
                `"/_/""""\\_\\\\
+              
+                 Generate code...
                             __
                  .,-;-;-,. /'_\\
                _/_/_/_|_\\_\\) /
              '-<_><_><_><_>=/\\
                `/_/====/_/-'\\_\\
                 ""     ""    ""
+            ...that generates code...
                   __....__
              .-~~/  \\__/  \\~~-.
             /_/``\\__/  \\__/``\\_\\.--.
            /  \\__/  \\__/  \\__/  \\   o`.
        `==/\\__/__\\__/__\\__/__\\__/\\`'--'
           ~/__/__/^^^^^^^^\\__\\__\\~
+             ...to generate code
   .---.           _....._
  /  p  `\\     .-""`:     :`"-.
  |__   - |  ,'     .     '    ',
@@ -373,9 +526,380 @@ step nil, section: :turtles do
           ((((-'           ((((-'
 TURTLES
 
+  center(turtles).print
+  puts
   
-  longest_line = turtles.lines.max {|l| l.size }
-  turtles.indent((tty_size / 2) - longest_line.size / 2).print
+  center(" Turtles All the Way Down ".highlight('.', color: :money)).indent(11).
+    print
+end
+
+step "How jitjson works", dir: jit_dir, section: :howitworks do
+  struct_finder = cat("ast/json_struct_finder.go")
+  
+  "1. Recurse down directories looking for .go files".indent.print
+  
+  wait 
+  
+  file_path("github.com/marcel/jitjson/ast/json_struct_finder.go")
+  
+  struct_finder.
+    grep("-A 2 'type FileSystemWalker '").
+    syntax_highlight.
+    print
+    
+  wait
+    
+  struct_finder.
+    grep("-A 14 ' JSONStructFinder recursively scans'").
+    syntax_highlight.
+    print
+  
+  wait
+  
+  "2. Parse each file".indent.print
+  
+  wait
+  
+  struct_finder.
+    grep("-A 12 'parser.AllErrors '").
+    syntax_highlight.
+    print
+      
+  wait
+  
+  "3. Traverse the AST looking for json structs".indent.print
+  
+  wait
+    
+  cmd("go-ast fixtures/navigation/navigation.go").
+    grep("-B 3 -A 33 '31.*Name: \"Route\"'").
+    highlight('34 ', color: :ast, full_line: true).
+    highlight('38 ', color: :ast, full_line: true).
+    highlight('43 ', color: :ast, full_line: true).
+    highlight('47 ', color: :ast, full_line: true).
+    highlight('55 ', color: :ast, full_line: true).
+    highlight('57 ', color: :ast, full_line: true).
+    highlight('59 ', color: :ast, full_line: true).
+    highlight('57 ', color: :ast, full_line: true).
+    highlight('62 ', color: :ast, full_line: true).
+    indent.
+    print
+        
+  wait
+    
+  file_path("github.com/marcel/jitjson/ast/json_struct_finder.go")
+  
+  struct_finder.
+    grep("-A 33 ' FindInAST\('").
+    syntax_highlight.
+    print
+  
+  puts
+  
+  sub_heading("Go's type system makes this class of code very verbose")
+    
+  wait
+  
+  "4. Generate code that uses reflection to do bulk of work traversing struct fields".indent.print
+  
+  wait
+  
+  meta_encoders = cat("codegen/meta_json_encoders.go")
+  
+  file_path("github.com/marcel/jitjson/codegen/meta_json_encoders.go")
+  
+  meta_encoders.
+    grep("-A 21 'var tmpl'").
+    syntax_highlight.
+    print
+    
+  wait
+    
+  sub_heading("We are initializing zero valued structs in the runtime scope of the target project's build")  
+  
+  wait
+  
+  "5. Compile and run".indent.print
+  
+  wait 
+  
+  meta_encoders.
+    grep("-A 7 ' ExecGo\('").
+    syntax_highlight.
+    print
+  
+  wait
+  
+  sub_heading("Errors from external processes are propagated by reading STDOUT & STDERR")
+  
+  wait
+  
+  "6. In generated code use reflection API to analyze each struct's fields".indent.print
+  
+  wait
+  
+  file_path("github.com/marcel/jitjson/codegen/json_encoders.go")
+  
+  cat("codegen/json_encoders.go").
+    grep("-A 26 ' fieldEncodingFor'").
+    syntax_highlight.
+    print
+  
+  wait
+  
+  sub_heading("These encoders need to be implemented recursively for all composite types")
+  
+  wait
+  
+  "7. From generated code, generate code which implements optimized reflection-free encoders".indent.print
+  
+  codegen_json_encoders = cat("codegen/json_encoders.go")
+  
+  wait
+  
+  file_path("github.com/marcel/jitjson/codegen/json_encoders.go")
+  
+  codegen_json_encoders.
+    grep("-A 17 ' generateMethodForStruct\('").
+    syntax_highlight.
+    print
+  
+  wait
+  
+  "8. For every package with JSON structs write file with all encoders".indent.print
+  
+  wait
+  
+  file_path("github.com/marcel/jitjson/fixtures/navigation/json_encoders.go")
+  
+  nav_encoder.
+    head(21).
+    syntax_highlight.
+    print
+    
+  wait
+  
+  sub_heading("Encoding is done w/ a pool of shared byte buffers, pre-allocated at start up time (w/ configurable size)")  
+  
+end
+
+step "There are some tricky bits", dir: jit_dir, section: :trickybits do
+  codegen_json_encoders = cat("codegen/json_encoders.go")
+  
+  "1. Traversing arbitrarily nested types (e.g. map[string]map[int][]string) without shadowing variables in scope".
+    indent.print
+    
+    # TODO
+  
+  wait
+  
+  "2. Check if a type (or a pointer to that type) implements the json.Marshaler interface and honor that (even if it is slower)".
+    indent.print
+    
+  # TODO
+  
+  wait
+  
+  file_path("github.com/marcel/jitjson/codegen/json_encoders.go")
+  
+  codegen_json_encoders.
+    grep("-A 23 'var jsonMarshalerType ='").
+    grep("-v TODO").
+    syntax_highlight.
+    print
+  
+  wait
+  
+  "3. Follow pointers via reflection API to base type but ensure they are indirected when invoked in code".
+    indent.print
+    
+    # TODO
+end
+
+step "Benchmarks", section: :benchmarks, dir: jit_dir do
+  wait
+  
+  file_path("github.com/benchmarks/benchmark_reflection_test.go")
+  
+  cat("benchmarks/benchmark_reflection_test.go").
+    grep("-A 26 'BenchmarkJSONReflectionMedia'").
+    syntax_highlight.
+    print
+    
+  wait
+  puts
+    
+  sub_heading("(the superfluous variable assignments are defending against compiler optimizations)")
+  
+  wait
+  
+  file_path("github.com/benchmarks/benchmark_jit_test.go")
+  
+  cat("benchmarks/benchmark_jit_test.go").
+    grep("-A 26 'BenchmarkJSONJitMedia'").
+    syntax_highlight.
+    print
+
+end
+
+step "Results: media.Album", section: :albumbench, dir: jit_dir do   
+  
+  wait
+  
+  cat("benchmarks/pprof/prof.reflect.media.cpu.final.bench").
+    grep("Bench").
+    highlight('.', color: :red).
+    print
+  
+  sleep(5)
+  
+  cat("benchmarks/pprof/prof.jit.media.cpu.final.bench").
+    grep("Bench").
+    highlight('.', color: :green).
+    print
+        
+  results = [" 3.5x Faster ", " 150x Less Garbage ", " 54x Fewer Allocs "].join("| ")
+
+  results.
+    highlight('.', color: :json).
+    indent(52).
+    print
+    
+  wait
+  
+  sub_heading("The allocation in jitjson is from time.Time which implements its own json.Marshaler") 
+  
+  time_marshal_json =<<-CODE
+  func (t Time) MarshalJSON() ([]byte, error) {
+  	if y := t.Year(); y < 0 || y >= 10000 {
+  		// RFC 3339 is clear that years are 4 digits exactly.
+  		// See golang.org/issue/4556#c15 for more discussion.
+  		return nil, errors.New("Time.MarshalJSON: year outside of range [0,9999]")
+  	}
+
+  	b := make([]byte, 0, len(RFC3339Nano)+2)
+  	b = append(b, '"')
+  	b = t.AppendFormat(b, RFC3339Nano)
+  	b = append(b, '"')
+  	return b, nil
+  }
+  CODE
+  
+  time_marshal_json.
+    syntax_highlight.
+    print
+
+end
+
+step "Results: navigation.Route", section: :routebench, dir: jit_dir do   
+  wait
+    
+  cat("benchmarks/pprof/prof.reflect.nav.cpu.final.bench").
+    grep("Bench").
+    highlight('.', color: :red).
+    print
+    
+  cat("benchmarks/pprof/prof.jit.nav.cpu.final.bench").
+    grep("Bench").
+    highlight('.', color: :green).
+    print
+    
+  ["   3.5x Faster ", " ~ ∞ Less Garbage ", "  ~ ∞ Fewer Allocs "].join(" | ").
+    highlight('.', color: :json).
+    indent(48).
+    print
+
+  wait
+    
+  sub_heading("Zero allocations because we pre-allocate the byte buffers and return a byte slice so no copy")
+  
+  "var bufferPool = encoding.NewSyncPool(4096)".
+    syntax_highlight.
+    print
+    
+  wait
+  
+  sub_heading("Buffer size can just be configured for your expected work load to avoid one-time allocation hit")
+  
+  "var bufferPool = encoding.NewSyncPool(16384)".
+    syntax_highlight.
+    print
+  
+  wait
+  
+  sub_heading("Subsequent string conversion will allocate but as we saw in concat benchmarks the copy cost is measured in nanoseconds")
+  
+  "bytes, err := media.ExampleAlbum.MarshalJSON()\nreturn string(bytes)\n".
+    syntax_highlight.
+    print
+  
+end
+
+step "CPU", dir: jit_dir do
+  sub_heading("Visualizing reflection")
+  instruction(" 12% spent in runtime.mallocgc ").indent.print
+  wait
+  
+  cmd "open benchmarks/pprof/prof.reflect.nav.cpu.final.svg"
+  
+  wait
+  
+  sub_heading("Visualizing jitjson")
+  instruction(" 0% spent in runtime.mallocgc ").indent.print
+  wait
+  
+  cmd "open benchmarks/pprof/prof.jit.nav.cpu.final.svg"
+end
+
+step "Memory", dir: jit_dir do
+  sub_heading("Visualizing reflection")
+  instruction(" 88% from bytes.makeSlice (called when a bytes.Buffer needs to make an allocation to grow) ").indent.print
+  wait
+  
+  cmd "open benchmarks/pprof/reflect.nav.mem.0.svg"
+  
+  wait
+  
+  sub_heading("Visualizing jitjson")
+  instruction(" 0% from bytes.makeSlice").print
+  wait
+  
+  cmd "open benchmarks/pprof/jit.nav.mem.0.svg"
+  
+  wait
+  
+  sub_heading("Fringe benefit: smaller call stack is easier to reason about and debug")
+end
+
+step "Could jitjson be faster?" do
+  
+  wait
+  
+  "YES! Side step bytes.Buffer and just operate on []byte".highlight('.', color: :json).indent.print
+  
+  wait
+  
+  sub_heading("But it would look a lot more like this:")
+  
+  
+  
+  wait
+  
+  sub_heading("JSON generated from jitjson is identical to JSON generated without it")
+end
+
+
+step "Does it work on real-world projects?" do
+  
+  wait
+  
+  sub_heading("Caveat: It's not quite production ready yet. But pretty close.")
+end
+
+step "Integrating into the build" do
+end
+
+step "Prior Art" do
 end
 
 step do

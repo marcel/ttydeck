@@ -8,12 +8,12 @@ Signal.trap("INT") {
 
 class PresentationComposer
   class << self
-    def run(start_at, &block)
+    def require(start_at, &block)
       new(&block).run(start_at)
     end
     
     def load(file, start_at = nil)
-      new.load(IO.read(file)).run(start_at)
+      new.load(file).run(start_at)
     end
   end
 
@@ -24,8 +24,8 @@ class PresentationComposer
     instance_eval &block if block
   end
   
-  def load(code)
-    instance_eval(code)
+  def load(file)
+    instance_eval(IO.read(file), file, 1)
     self
   end
 
@@ -42,26 +42,37 @@ class PresentationComposer
   end
 
   def print_heading(text)
-    text.
-      highlight(".", color: :blue, full_line: true).
+    " #{text} ".
+      highlight(".", color: :blue).
       print
 
     puts
   end
   
-  def sub_heading(text)
-    text.
-      highlight('.', color: :subheading).
+  def sub_heading(text, options = {})
+    options[:color] ||= :subheading
+    " #{text} ".
+      highlight('.', options).
       indent.
       print
       
       puts
   end
   
+  def file_path(text)
+    sub_heading(text, color: :file_path)
+  end
+  
   def instruction(text)
     text.
       highlight(".", color: :yellow).
       indent
+  end
+  
+  def center(text)
+    longest_line = text.lines.max {|l| l.size }
+    
+    text.indent((tty_size / 2) - (longest_line.size / 2))
   end
 
   def cmd(string) 
@@ -174,24 +185,24 @@ class String
   end
 
   def indent(columns = 3)
-    split("\n").map {|line| 
+    lines.map {|line| 
       (" " * columns) + line
-    }.join("\n")
+    }.join
   end
 
   COLOR = {
     red: '1;37;41',
     green:  '1;37;42',
     yellow: '1;37;43',
-    #blue:  '4;37;104',
-    blue: '4;48;5;32',
-    underline: '4;37;49',
+    blue: '1;48;5;39',
     money: '48;5;22',
     light_grey: '38;5;238',
     closing_credits: '48;5;241',
     subheading: '1;48;5;39',
     json: '48;5;202',
-    jitjson: '48;5;150'
+    jitjson: '48;5;150',
+    ast: '48;5;53',
+    file_path: '48;5;100'
   }
   
   def colorize(text, color)
@@ -200,7 +211,7 @@ class String
 
   def highlight(pattern, options = {})
     options[:color] ||= :green
-    options[:full_line] ||= false
+    options[:full_line] ||= pattern == '.'
     
     pattern = options[:full_line] ? /^.*#{pattern}.*$/ : /#{pattern}/
     lines.map do |line|
