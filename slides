@@ -15,80 +15,83 @@ step do
   
   wait 
   
-  center("Reflection is often verbose or cryptic or slow or all three").print  
-end
-
-step "C# — Invoke a method", section: :csharp do  
-  
-  c_sharp_reflection =<<-CSHARP
-  Assembly myAssembly = Assembly.LoadFile(@"D:\\ClassLibrary1\\Debug\\ClassLibrary1.dll"); 
-  Type myType = myAssembly.GetType("ClassLibrary1.clsCalculation");
-  object objInstance = Activator.CreateInstance(myType);
-  Type objectTypes = objInstance.GetType();
-  objectTypes.InvokeMember(
-    "PrintClassName", 
-    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.InvokeMethod | BindingFlags.Instance, 
-    null, 
-    objInstance, 
-    null
-  );
-  CSHARP
-  
-  c_sharp_reflection.syntax_highlight(lang: "csharp").print
-end
-
-step "Scala — Invoke a method", section: :scala do
-  scala_reflection =<<-SCALA
-  def companion[T](name : String)(implicit man: Manifest[T]) : T = {
-    Class.forName(name + "$").getField("MODULE$").get(man.erasure).asInstanceOf[T]
-  }
-
-  val result = companion[SomeTrait]("SomeObject").someMethod
-  SCALA
-  
-  scala_reflection.syntax_highlight(lang: "scala").print
-end
-
-step "Java — Invoke a method", section: :java do
-  java_reflection =<<-JAVA
-  try {
-    Class<?> c = obj.getClass();
-    method = c.getDeclaredMethod(methodName, param1.class, param2.class);
-  } catch (SecurityException e) { ... }
-    catch (NoSuchMethodException e) { ... }
-    
-  try {
-    method.invoke(obj, arg1, arg2);
-  } catch (IllegalArgumentException e) { ... }
-    catch (IllegalAccessException e) { ... }
-    catch (InvocationTargetException e) { ... }
-  JAVA
-  
-  java_reflection.syntax_highlight(lang: "java").print
-end
-  
-step "Lisp — No idea" do
-  lisp_reflection =<<-LISP
-  ;; No idea
-  (set-macro-characer #\\{
-    (lambda (str)
-      (let ((type (read-char str)))
-            (l (read-delimited-list
-                            #\\} str)))
-        (case type
-          (#\\c `(call 'this
-                       ',(car l)
-                        ,@(cdr l)))
-          (#\\i `(getInstVar 'this
-                            ',(car l)))))))
-  LISP
-  
-  lisp_reflection.syntax_highlight(lang: "lisp").print
+  center("Reflection is often verbose, cryptic and slow").print
   
   wait
-    
-  sub_heading("What about Go?")
+  
+  center(" What about Go? ".highlight('.', color: :subheading)).indent(7).print
 end
+
+# step "C# — Invoke a method", section: :csharp do
+#   c_sharp_reflection =<<-CSHARP
+#   Assembly myAssembly = Assembly.LoadFile(@"D:\\ClassLibrary1\\Debug\\ClassLibrary1.dll");
+#   Type myType = myAssembly.GetType("ClassLibrary1.clsCalculation");
+#   object objInstance = Activator.CreateInstance(myType);
+#   Type objectTypes = objInstance.GetType();
+#   objectTypes.InvokeMember(
+#     "PrintClassName",
+#     BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.InvokeMethod | BindingFlags.Instance,
+#     null,
+#     objInstance,
+#     null
+#   );
+#   CSHARP
+#
+#   c_sharp_reflection.syntax_highlight(lang: "csharp").print
+# end
+#
+# step "Scala — Invoke a method", section: :scala do
+#   scala_reflection =<<-SCALA
+#   def companion[T](name : String)(implicit man: Manifest[T]) : T = {
+#     Class.forName(name + "$").getField("MODULE$").get(man.erasure).asInstanceOf[T]
+#   }
+#
+#   val result = companion[SomeTrait]("SomeObject").someMethod
+#   SCALA
+#
+#   scala_reflection.syntax_highlight(lang: "scala").print
+# end
+#
+# step "Java — Invoke a method", section: :java do
+#   java_reflection =<<-JAVA
+#   try {
+#     Class<?> c = obj.getClass();
+#     method = c.getDeclaredMethod(methodName, param1.class, param2.class);
+#   } catch (SecurityException e) { ... }
+#     catch (NoSuchMethodException e) { ... }
+#
+#   try {
+#     method.invoke(obj, arg1, arg2);
+#   } catch (IllegalArgumentException e) { ... }
+#     catch (IllegalAccessException e) { ... }
+#     catch (InvocationTargetException e) { ... }
+#   JAVA
+#
+#   java_reflection.syntax_highlight(lang: "java").print
+# end
+#
+# step "Lisp — No idea" do
+#   lisp_reflection =<<-LISP
+#   ;; No idea
+#   (set-macro-characer #\\{
+#     (lambda (str)
+#       (let ((type (read-char str)))
+#             (l (read-delimited-list
+#                             #\\} str)))
+#         (case type
+#           (#\\c `(call 'this
+#                        ',(car l)
+#                         ,@(cdr l)))
+#           (#\\i `(getInstVar 'this
+#                             ',(car l)))))))
+#   LISP
+#
+#   lisp_reflection.syntax_highlight(lang: "lisp").print
+#
+#   wait
+#
+#   sub_heading("What about Go?")
+# end
 
 step "Let's start with a simple example", section: :simpleexample do
   benchmark_test.
@@ -131,7 +134,7 @@ step "Map: interface{} and reflect.Value", section: :interfaceandvalue do
   file_path("github.com/marcel/misc/benchmarks/reflection/map/benchmark_test.go")
   
   benchmark_test.
-    grep("-A 22 'func Map\('").
+    grep("-A 23 'func Map\('").
     syntax_highlight.
     print
 end
@@ -169,13 +172,6 @@ step "Sources of allocation in Map --cumulative", dir: reflection_dir, section: 
   pprof("-cum -text -alloc_space ../map.test map.mem.0").
     highlight("reflect\\.", color: :red, full_line: true).
     highlight("0%[ ]*0%[  ]*64", color: :green, full_line: true).
-    print
-end
-
-step nil, section: :mapSlice do
-  benchmark_test.
-    grep("-A 14 'func mapSlice'").
-    syntax_highlight.
     print
 end
 
@@ -304,7 +300,7 @@ step "Go does this with reflection", section: :marshalReflectValue do
   code.syntax_highlight.print
 end
 
-step "Let's profile `json.Marshal(&route)`", dir: jit_bench_dir do
+step "Let's profile `json.Marshal(&route)`", dir: jit_bench_dir, section: :inherentwork do
   wait
   [
     " Inherent Work ".highlight('.', color: :green),
@@ -322,7 +318,15 @@ step "Let's profile `json.Marshal(&route)`", dir: jit_bench_dir do
     print
 end
 
-step "Let's take a deeper look", dir: jit_bench_dir do
+step "Visualize % of inherent work done", dir: jit_bench_dir, section: :inherentworkviz do
+  instruction("encoding/json vs bytes & runtime.m").print
+    
+  wait
+  
+  cmd "open prof.reflect.nav.cpu.0.svg"
+end
+
+step "Let's take a deeper look at `-fm` and `encode`", dir: jit_bench_dir do
   instruction('1. list \-fm (passing reflect.Type around)').print
   instruction('2. list Encoder\).encode (reflecting on fields)').print
   
@@ -331,12 +335,48 @@ step "Let's take a deeper look", dir: jit_bench_dir do
   system "go tool pprof benchmarks.test prof.reflect.nav.cpu.0"
 end
 
-step "Visualize % of inherent work done", dir: jit_bench_dir do
-  instruction("encoding/json vs runtime.m").print
-    
+step "json.Marshal would be even slower without caching", section: :encoderCaching do
+  typeEncoder =<<-ENCODER
+  func typeEncoder(t reflect.Type) encoderFunc {
+  	encoderCache.RLock()
+  	f := encoderCache.m[t]
+  	encoderCache.RUnlock()
+  	if f != nil {
+  		return f
+  	}
+
+  	// To deal with recursive types, populate the map with an
+  	// indirect func before we build it. This type waits on the
+  	// real func (f) to be ready and then calls it. This indirect
+  	// func is only used for recursive types.
+  	encoderCache.Lock()
+  	if encoderCache.m == nil {
+  		encoderCache.m = make(map[reflect.Type]encoderFunc)
+  	}
+  	var wg sync.WaitGroup
+  	wg.Add(1)
+  	encoderCache.m[t] = func(e *encodeState, v reflect.Value, opts encOpts) {
+  		wg.Wait()
+  		f(e, v, opts)
+  	}
+  	encoderCache.Unlock()
+
+  	// Compute fields without lock.
+  	// Might duplicate effort but won't hold other computations back.
+  	f = newTypeEncoder(t, true)
+  	wg.Done()
+  	encoderCache.Lock()
+  	encoderCache.m[t] = f
+  	encoderCache.Unlock()
+  	return f
+  }
+	ENCODER
+  
+  typeEncoder.syntax_highlight.print
+  
   wait
   
-  cmd "open prof.reflect.nav.cpu.0.svg"
+  sub_heading("Though caching encoders removes some computation the cached encoders still rely on reflection")
 end
 
 step do
@@ -505,7 +545,6 @@ step nil, section: :encodingBuffer do
   wait
   
   code =<<-CODE
-  // 
   func (e *Buffer) Quote(s string) {
     s.WriteByte('"')
     s.WriteString(s)
@@ -514,9 +553,16 @@ step nil, section: :encodingBuffer do
   CODE
   
   code.syntax_highlight.print
+  
+  puts
+  
+  sub_heading("This straight-forward implementation becomes a bottleneck")
 end
 
-step nil, dir: string_concat_dir, section: :stringconcat do
+step "Benchmarking string concatenation", dir: string_concat_dir, section: :stringconcat do
+  
+  instruction('Objective: "name":"value" ').print
+  wait
   
   sub_heading("Sprintf")
   
@@ -1178,6 +1224,9 @@ step "jitjson cloc", section: :jitjsoncloc do
   sub_heading("Test Coverage: 90%")
 end
 
-step nil, section: :end do
+step "http://github.com/marcel/jitjson", section: :end do
   title("The End", color: :closing_credits)
+  puts
+  
+  center("🎉  👏🏻  🎊").print
 end
