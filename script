@@ -11,14 +11,82 @@ nav_encoder = cat(File.join(jit_dir, "fixtures/navigation/json_encoders.go"))
 encoding_buffer = cat(File.join(jit_dir, "encoding/buffer.go"))
 
 step do
-  title("The Cost of Reflection in Go", color: :money)
+  title("Reflection in Go", color: :money)
+  
+  wait 
+  
+  center("Reflection is often verbose or cryptic or slow or all three").print  
 end
 
-step do
-  sub_heading("Usually high complexity cost and performance cost")
+step "C# — Invoke a method", section: :csharp do  
+  
+  c_sharp_reflection =<<-CSHARP
+  Assembly myAssembly = Assembly.LoadFile(@"D:\\ClassLibrary1\\Debug\\ClassLibrary1.dll"); 
+  Type myType = myAssembly.GetType("ClassLibrary1.clsCalculation");
+  object objInstance = Activator.CreateInstance(myType);
+  Type objectTypes = objInstance.GetType();
+  objectTypes.InvokeMember(
+    "PrintClassName", 
+    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.InvokeMethod | BindingFlags.Instance, 
+    null, 
+    objInstance, 
+    null
+  );
+  CSHARP
+  
+  c_sharp_reflection.syntax_highlight(lang: "csharp").print
+end
+
+step "Scala — Invoke a method", section: :scala do
+  scala_reflection =<<-SCALA
+  def companion[T](name : String)(implicit man: Manifest[T]) : T = {
+    Class.forName(name + "$").getField("MODULE$").get(man.erasure).asInstanceOf[T]
+  }
+
+  val result = companion[SomeTrait]("SomeObject").someMethod
+  SCALA
+  
+  scala_reflection.syntax_highlight(lang: "scala").print
+end
+
+step "Java — Invoke a method", section: :java do
+  java_reflection =<<-JAVA
+  try {
+    Class<?> c = obj.getClass();
+    method = c.getDeclaredMethod(methodName, param1.class, param2.class);
+  } catch (SecurityException e) { ... }
+    catch (NoSuchMethodException e) { ... }
+    
+  try {
+    method.invoke(obj, arg1, arg2);
+  } catch (IllegalArgumentException e) { ... }
+    catch (IllegalAccessException e) { ... }
+    catch (InvocationTargetException e) { ... }
+  JAVA
+  
+  java_reflection.syntax_highlight(lang: "java").print
+end
+  
+step "Lisp — No idea" do
+  lisp_reflection =<<-LISP
+  ;; No idea
+  (set-macro-characer #\\{
+    (lambda (str)
+      (let ((type (read-char str)))
+            (l (read-delimited-list
+                            #\\} str)))
+        (case type
+          (#\\c `(call 'this
+                       ',(car l)
+                        ,@(cdr l)))
+          (#\\i `(getInstVar 'this
+                            ',(car l)))))))
+  LISP
+  
+  lisp_reflection.syntax_highlight(lang: "lisp").print
   
   wait
-  
+    
   sub_heading("What about Go?")
 end
 
@@ -60,36 +128,35 @@ step "Produce a Slice of Full Names" do
 end
 
 step "Map: interface{} and reflect.Value" do
+  file_path("github.com/marcel/misc/benchmarks/reflection/map/benchmark_test.go")
+  
   benchmark_test.
     grep("-A 22 'func Map\('").
     syntax_highlight.
     print
 end
 
-step "Benchmark: For Loop vs Map", dir: reflection_dir do
+step "Benchmark: For Loop vs Map", dir: reflection_dir, section: :forvsmap do
   benchmark_test.
     grep("-A 5 'func Benchmark'").
     syntax_highlight.
     print
-    
-    puts
+end
   
-  wait
-  
-  sub_heading("Results:")
-    
+step "Results:", dir: reflection_dir do
   cat("*cpu.1.bench").
+    grep("Bench").
     highlight("Loop", color: :green, full_line: true).
     highlight("Map", color: :red, full_line: true).
-    indent.
     print
-    
-    puts
-    
-    "5x Slower\t3x More Garbage".
-      highlight('.', color: :yellow).
-      indent.
+        
+    results = ["  5.5x Faster ", " 3x Less Garbage ", " 3.5x Fewer Allocs "].join(" | ")
+
+    results.
+      highlight('.', color: :json).
+      indent(42).
       print
+  
 end
 
 step "Sources of allocations in Map", dir: reflection_dir do
@@ -145,7 +212,7 @@ step nil, dir: reflection_dir do
 end
 
 step nil, section: :trash do
-  center("Observation: Reflection adds lots allocations and garbage").
+  center("Observation: Reflection adds lots of allocations and garbage").
     ljust(tty_size).
     highlight('.', color: :subheading).
     print
@@ -173,7 +240,10 @@ step nil, section: :trash do
   
   wait 
   
-  sub_heading("Ok...let's just avoid reflection...")
+  center("    Ok...let's just avoid reflection...").
+    ljust(tty_size).
+    highlight('.', color: :subheading).
+    print
 end
 
 step nil, dir: jit_dir, section: :json do
@@ -202,9 +272,27 @@ step "Encoding a struct as JSON" do
   CODE
   
   code.syntax_highlight.print
+  
+  wait
+  
+  sub_heading("Output")
+  
+  json = <<-JSON
+  {
+    "first_name": "Marcel",
+    "last_name": "Molina"
+  }
+  JSON
+  
+  json.syntax_highlight(lang: "json").print
+  
+  wait
+  
+  sub_heading("Very simple interface!")
 end
 
-step "From encoding/json/encode.go" do
+step "Go does this with reflection" do
+  file_path("encoding/json/encode.go")
   code =<<-CODE
   func (e *encodeState) marshal(v interface{}, opts encOpts) (err error) {
     // ...
@@ -234,8 +322,8 @@ step "Let's profile `json.Marshal(&route)`", dir: jit_bench_dir do
 end
 
 step "Let's take a deeper look", dir: jit_bench_dir do
-  instruction('1. list \-fm').print
-  instruction('2. list Encoder\).encode').print
+  instruction('1. list \-fm (passing reflect.Type around)').print
+  instruction('2. list Encoder\).encode (reflecting on fields)').print
   
   puts
   
@@ -260,6 +348,8 @@ step do
     inherent_work.highlight('.', color: :green),
     overhead.highlight('.', color: :red)
   ].join.indent.print
+  
+  [" runtime.makeslice   ", "        reflect -> reflect -> reflect -> reflect"].join.indent.print
 end
 
 step "What are our options?", section: :marshaler, dir: jit_dir do
@@ -349,6 +439,7 @@ end
 
 step nil, section: :jitjson do
   title("jitjson", color: :jitjson)
+  puts
   cmd("jitjson --help").indent.print
 end
 
@@ -739,7 +830,6 @@ step "Benchmarks", section: :benchmarks, dir: jit_dir do
     grep("-A 26 'BenchmarkJSONJitMedia'").
     syntax_highlight.
     print
-
 end
 
 step "Results: media.Album", section: :albumbench, dir: jit_dir do   
@@ -827,17 +917,20 @@ step "Results: navigation.Route", section: :routebench, dir: jit_dir do
   
   wait
   
-  sub_heading("Subsequent string conversion will allocate but as we saw in concat benchmarks the copy cost is measured in nanoseconds")
+  sub_heading("Subsequent call to runtime.slicebytetostring *will* allocate")
   
   "bytes, err := media.ExampleAlbum.MarshalJSON()\nreturn string(bytes)\n".
     syntax_highlight.
     print
   
+  wait
+    
+  sub_heading("But from concat benchmarks we saw that its cost is measured in nanoseconds")
 end
 
 step "CPU", dir: jit_dir do
   sub_heading("Visualizing reflection")
-  instruction(" 12% spent in runtime.mallocgc ").indent.print
+  instruction(" 12% tax spent in runtime.mallocgc ").indent.print
   wait
   
   cmd "open benchmarks/pprof/prof.reflect.nav.cpu.final.svg"
@@ -871,21 +964,36 @@ step "Memory", dir: jit_dir do
   sub_heading("Fringe benefit: smaller call stack is easier to reason about and debug")
 end
 
-step "Could jitjson be faster?" do
-  
+step "Bonus: jitjson produces identical JSON to built-in json.Marshal", dir: jit_dir do
+  album = cat("fixtures/media/example.json")
+    
+  side_by_side(album.head(25), album.head(25)).
+    syntax_highlight(lang: "json").
+    print
+end
+
+step "Could jitjson be faster?", section: :faster? do
   wait
   
-  "YES! Side step bytes.Buffer and just operate on []byte".highlight('.', color: :json).indent.print
+  "YES! Side-step bytes.Buffer and just operate on pre-allocated []byte slice".highlight('.', color: :json).indent.print
   
   wait
   
   sub_heading("But it would look a lot more like this:")
   
-  
-  
+  string_concat.
+    grep("-A 17 'func quo'").
+    syntax_highlight.
+    print
+    
   wait
   
-  sub_heading("JSON generated from jitjson is identical to JSON generated without it")
+  sub_heading("Instead of this:")
+  
+  nav_encoder.
+    grep("-A 20 'routeStruct\(route Route'").
+    syntax_highlight.
+    print  
 end
 
 
@@ -896,12 +1004,131 @@ step "Does it work on real-world projects?" do
   sub_heading("Caveat: It's not quite production ready yet. But pretty close.")
 end
 
-step "Integrating into the build" do
+step "Build integration with `go generate`" do
+  
+  instruction("Add this comment to the top of your main project file").print
+  puts
+  
+  "//go:generate jitjson gen".syntax_highlight.print
+  
+  wait
+  
+  instruction("Add `go generate` step to your build script").print
+  puts
+  
+  "% go generate".indent.print
+  
+  wait
+  
+  sub_heading("That's it")
+
+  wait
+
+  sub_heading("Doesn't save any typing but it integrates directly into the tool-chain")
 end
 
 step "Prior Art" do
+  sub_heading("1. Protocol Buffers for Go with Gadgets")
+  file_path("github.com/gogo/protobuf")
+  
+  sub_heading("2. ffjson")
+  file_path("github.com/pquerna/ffjson")
+  
+  sub_heading("3. easyjson")
+  file_path("github.com/mailru/easyjson")
+  
+  wait
+  
+  sub_heading("Seems to be a common pratice in Go")  
 end
 
-step do
+step "ffjson cloc", section: :ffjsoncloc do
+  sub_heading("Library code")
+  lib_code =<<-TESTS
+  -------------------------------------------------------------------------------
+  Language                     files          blank        comment           code
+  -------------------------------------------------------------------------------
+  Go                              44           1400           1924           9464
+  -------------------------------------------------------------------------------
+  TESTS
+  
+  lib_code.indent.print
+  
+  wait
+  
+  sub_heading("Tests")
+  
+  tests =<<-TESTS
+  -------------------------------------------------------------------------------
+  Go                              14            485            263           2570
+  -------------------------------------------------------------------------------
+  TESTS
+  
+  tests.indent.print
+  
+  wait
+  
+  sub_heading("Couldn't measure coverage because the tests don't compile")
+end
+
+step "easyjson cloc", section: :easyjsoncloc do
+  sub_heading("Library code")
+  lib_code =<<-TESTS
+  -------------------------------------------------------------------------------
+  Language                     files          blank        comment           code
+  -------------------------------------------------------------------------------
+  Go                              43           2693            606          16442
+  -------------------------------------------------------------------------------
+  TESTS
+  
+  lib_code.indent.print
+  
+  wait
+  
+  sub_heading("Tests")
+  
+  tests =<<-TESTS
+  -------------------------------------------------------------------------------
+  Go                              11            223              7           1468
+  -------------------------------------------------------------------------------
+  TESTS
+  
+  tests.indent.print
+  
+  wait
+  
+  sub_heading("Couldn't measure coverage because the tests don't compile, Part 2")
+end
+
+step "jitjson cloc", section: :jitjsoncloc do
+  sub_heading("Library code")
+  lib_code =<<-TESTS
+  -------------------------------------------------------------------------------
+  Language                     files          blank        comment           code
+  -------------------------------------------------------------------------------
+  Go                              10            279             58           1051
+  -------------------------------------------------------------------------------
+  TESTS
+  
+  lib_code.indent.print
+  
+  wait
+  
+  sub_heading("Tests")
+  
+  tests =<<-TESTS
+  -------------------------------------------------------------------------------
+  Go                              10            257            114            956
+  -------------------------------------------------------------------------------
+  TESTS
+  
+  tests.indent.print
+  
+  wait
+  
+  sub_heading("Test Coverage: 90%")
+end
+
+step nil, section: :end do
   title("The End", color: :closing_credits)
 end

@@ -110,9 +110,19 @@ class PresentationComposer
     step = steps[current_step]
     step_number << "#{step.section} " if step.section
     
-    (step_number + ("—" * (tty_size - step_number.size))).
-      highlight('.', color: :light_grey).
-      print
+    total_size = tty_size
+    
+    if (next_step = steps[current_step + 1]) && next_step.section
+      offset = step_number.size + next_step.section.to_s.size + 2
+      line = "—" * (total_size - offset)
+      "#{step_number}#{line}> #{next_step.section}".
+        highlight('.', color: :light_grey).
+        print
+    else
+      (step_number + ("—" * (total_size - step_number.size))).
+        highlight('.', color: :light_grey).
+        print
+    end
   end
   
   def resolve_location(starting_at)
