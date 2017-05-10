@@ -1152,10 +1152,6 @@ step "Build integration with `go generate`" do
   puts
   
   "% go generate".indent.print
-  
-  wait
-  
-  sub_heading("That's it")
 
   wait
 
@@ -1177,63 +1173,63 @@ step "Prior Art" do
   sub_heading("Seems to be a common pratice in Go")  
 end
 
-step "ffjson cloc", section: :ffjsoncloc do
-  sub_heading("Library code")
-  lib_code =<<-TESTS
-  -------------------------------------------------------------------------------
-  Language                     files          blank        comment           code
-  -------------------------------------------------------------------------------
-  Go                              44           1400           1924           9464
-  -------------------------------------------------------------------------------
-  TESTS
-  
-  lib_code.indent.print
-  
-  wait
-  
-  sub_heading("Tests")
-  
-  tests =<<-TESTS
-  -------------------------------------------------------------------------------
-  Go                              14            485            263           2570
-  -------------------------------------------------------------------------------
-  TESTS
-  
-  tests.indent.print
-  
-  wait
-  
-  sub_heading("Couldn't measure coverage because the tests don't compile")
-end
-
-step "easyjson cloc", section: :easyjsoncloc do
-  sub_heading("Library code")
-  lib_code =<<-TESTS
-  -------------------------------------------------------------------------------
-  Language                     files          blank        comment           code
-  -------------------------------------------------------------------------------
-  Go                              43           2693            606          16442
-  -------------------------------------------------------------------------------
-  TESTS
-  
-  lib_code.indent.print
-  
-  wait
-  
-  sub_heading("Tests")
-  
-  tests =<<-TESTS
-  -------------------------------------------------------------------------------
-  Go                              11            223              7           1468
-  -------------------------------------------------------------------------------
-  TESTS
-  
-  tests.indent.print
-  
-  wait
-  
-  sub_heading("Couldn't measure coverage because the tests don't compile, Part 2")
-end
+# step "ffjson cloc", section: :ffjsoncloc do
+#   sub_heading("Library code")
+#   lib_code =<<-TESTS
+#   -------------------------------------------------------------------------------
+#   Language                     files          blank        comment           code
+#   -------------------------------------------------------------------------------
+#   Go                              44           1400           1924           9464
+#   -------------------------------------------------------------------------------
+#   TESTS
+#
+#   lib_code.indent.print
+#
+#   wait
+#
+#   sub_heading("Tests")
+#
+#   tests =<<-TESTS
+#   -------------------------------------------------------------------------------
+#   Go                              14            485            263           2570
+#   -------------------------------------------------------------------------------
+#   TESTS
+#
+#   tests.indent.print
+#
+#   wait
+#
+#   sub_heading("Couldn't measure coverage because the tests don't compile")
+# end
+#
+# step "easyjson cloc", section: :easyjsoncloc do
+#   sub_heading("Library code")
+#   lib_code =<<-TESTS
+#   -------------------------------------------------------------------------------
+#   Language                     files          blank        comment           code
+#   -------------------------------------------------------------------------------
+#   Go                              43           2693            606          16442
+#   -------------------------------------------------------------------------------
+#   TESTS
+#
+#   lib_code.indent.print
+#
+#   wait
+#
+#   sub_heading("Tests")
+#
+#   tests =<<-TESTS
+#   -------------------------------------------------------------------------------
+#   Go                              11            223              7           1468
+#   -------------------------------------------------------------------------------
+#   TESTS
+#
+#   tests.indent.print
+#
+#   wait
+#
+#   sub_heading("Couldn't measure coverage because the tests don't compile, Part 2")
+# end
 
 step "jitjson cloc", section: :jitjsoncloc do
   sub_heading("Library code")
