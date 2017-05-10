@@ -90,7 +90,7 @@ step "Lisp — No idea" do
   sub_heading("What about Go?")
 end
 
-step "Let's start with a simple example" do
+step "Let's start with a simple example", section: :simpleexample do
   benchmark_test.
     grep("-A 3 'type Person'").
     syntax_highlight.
@@ -107,7 +107,7 @@ step "Let's start with a simple example" do
   " ... etc".indent.print
 end
 
-step "Produce a Slice of Full Names" do
+step "Produce a Slice of Full Names", section: :fullnameslice do
   wait
   
   sub_heading("Standard Go Way")
@@ -127,7 +127,7 @@ step "Produce a Slice of Full Names" do
     print
 end
 
-step "Map: interface{} and reflect.Value" do
+step "Map: interface{} and reflect.Value", section: :interfaceandvalue do
   file_path("github.com/marcel/misc/benchmarks/reflection/map/benchmark_test.go")
   
   benchmark_test.
@@ -143,7 +143,7 @@ step "Benchmark: For Loop vs Map", dir: reflection_dir, section: :forvsmap do
     print
 end
   
-step "Results:", dir: reflection_dir do
+step "Results:", dir: reflection_dir, section: :forvsmapbench do
   cat("*cpu.1.bench").
     grep("Bench").
     highlight("Loop", color: :green, full_line: true).
@@ -159,27 +159,27 @@ step "Results:", dir: reflection_dir do
   
 end
 
-step "Sources of allocations in Map", dir: reflection_dir do
+step "Sources of allocations in Map", dir: reflection_dir, section: :mapalloc do
   pprof("-text -alloc_space ../map.test map.mem.0").
     highlight("reflect\\..*$", color: :red).
     print
 end
 
-step "Sources of allocation in Map --cumulative", dir: reflection_dir do
+step "Sources of allocation in Map --cumulative", dir: reflection_dir, section: :mapallocum do
   pprof("-cum -text -alloc_space ../map.test map.mem.0").
     highlight("reflect\\.", color: :red, full_line: true).
     highlight("0%[ ]*0%[  ]*64", color: :green, full_line: true).
     print
 end
 
-step do
+step nil, section: :mapSlice do
   benchmark_test.
     grep("-A 14 'func mapSlice'").
     syntax_highlight.
     print
 end
 
-step "Visualization of CPU time", dir: reflection_dir do
+step "Visualization of CPU time", dir: reflection_dir, section: :forvsmapcpuviz do
   wait
   
   instruction("For Loop: Time spent in runtime").print
@@ -192,7 +192,7 @@ step "Visualization of CPU time", dir: reflection_dir do
   cmd "open *map*cpu.1.svg"
 end
 
-step "Visualization of memory", dir: reflection_dir do
+step "Visualization of memory", dir: reflection_dir, section: :forvsmapmemviz do
   instruction("For Loop: % of allocations from concat").print
   wait
   cmd "open for*mem.0.svg"
@@ -203,7 +203,7 @@ step "Visualization of memory", dir: reflection_dir do
   cmd "open *map*mem*.0.svg"
 end
 
-step nil, dir: reflection_dir do
+step nil, dir: reflection_dir, section: :listMapSlice do
   "-> list mapSlice".
     highlight(".", color: :yellow, full_line: true).
     print
@@ -240,7 +240,7 @@ step nil, section: :trash do
   
   wait 
   
-  center("    Ok...let's just avoid reflection...").
+  center("     Ok...let's just avoid reflection...").
     ljust(tty_size).
     highlight('.', color: :subheading).
     print
@@ -259,7 +259,7 @@ step nil, dir: jit_dir, section: :json do
     print
 end
 
-step "Encoding a struct as JSON" do
+step "Encoding a struct as JSON", section: :jsonmarshal do
   code =<<-CODE
   type Person struct {
     First string `json:"first_name"`
@@ -291,7 +291,7 @@ step "Encoding a struct as JSON" do
   sub_heading("Very simple interface!")
 end
 
-step "Go does this with reflection" do
+step "Go does this with reflection", section: :marshalReflectValue do
   file_path("encoding/json/encode.go")
   code =<<-CODE
   func (e *encodeState) marshal(v interface{}, opts encOpts) (err error) {
@@ -305,6 +305,7 @@ step "Go does this with reflection" do
 end
 
 step "Let's profile `json.Marshal(&route)`", dir: jit_bench_dir do
+  wait
   [
     " Inherent Work ".highlight('.', color: :green),
     " Overhead ".highlight('.', color: :red),
@@ -997,11 +998,59 @@ step "Could jitjson be faster?", section: :faster? do
 end
 
 
-step "Does it work on real-world projects?" do
+step "Does it work on real-world projects?", section: :realworld do
+  console = ->(text) {     
+    "$ #{text} ".
+      highlight('.', color: :console).
+      indent.
+      print
+  }
+  
+  head = cmd("jitjson list #{ENV['GOHOME']}/google.golang.org/api/compute/v1 |head")
+  wait
+  instruction("google.golang.org/api/compute/v1").print
+
+  wait
+  
+  console.call("find . -name '*.go' -exec wc -l {} \\;")
+  "58975 ./compute-gen.go".indent.print
   
   wait
   
-  sub_heading("Caveat: It's not quite production ready yet. But pretty close.")
+  console.call("jitjson list | head")
+  head.indent.print
+  
+  wait
+  
+  console.call("jitjson list | wc -l")
+  "244".indent.print
+  
+  wait
+  
+  console.call("jitjson gen")
+  "// no errors :-)".indent.print
+
+  wait
+  
+  console.call("jitjson files")
+  "json_encoders.go".indent.print
+  
+  wait
+  
+  console.call("find . -name '*.go' -exec wc -l {} \\;")
+  "58975 ./compute-gen.go\n14482 ./json_encoders.go\n".indent.print
+  
+  wait
+  
+  console.call("go build")  
+  "// no errors :-)".indent.print
+  
+  wait
+  
+  "Caveat: Would still need a lot more verification and edge-case detection to be production ready".
+    highlight('.', color: :json).
+    indent.
+    print
 end
 
 step "Build integration with `go generate`" do

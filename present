@@ -64,7 +64,7 @@ class PresentationComposer
   end
   
   def instruction(text)
-    text.
+    " #{text} ".
       highlight(".", color: :yellow).
       indent
   end
@@ -80,6 +80,7 @@ class PresentationComposer
   end
 
   def wait
+    print " "
     STDIN.getc
   end
   
@@ -212,7 +213,9 @@ class String
     json: '48;5;202',
     jitjson: '48;5;150',
     ast: '48;5;53',
-    file_path: '48;5;100'
+    file_path: '48;5;100',
+    waiting: '38;5;234;48;5;235',
+    console: '48;5;239'
   }
   
   def colorize(text, color)
