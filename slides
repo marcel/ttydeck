@@ -821,38 +821,38 @@ step "How jitjson works", dir: jit_dir, section: :howitworks do
   
 end
 
-step "There are some tricky bits", dir: jit_dir, section: :trickybits do
-  codegen_json_encoders = cat("codegen/json_encoders.go")
-  
-  "1. Traversing arbitrarily nested types (e.g. map[string]map[int][]string) without shadowing variables in scope".
-    indent.print
-    
-    # TODO
-  
-  wait
-  
-  "2. Check if a type (or a pointer to that type) implements the json.Marshaler interface and honor that (even if it is slower)".
-    indent.print
-    
-  # TODO
-  
-  wait
-  
-  file_path("github.com/marcel/jitjson/codegen/json_encoders.go")
-  
-  codegen_json_encoders.
-    grep("-A 23 'var jsonMarshalerType ='").
-    grep("-v TODO").
-    syntax_highlight.
-    print
-  
-  wait
-  
-  "3. Follow pointers via reflection API to base type but ensure they are indirected when invoked in code".
-    indent.print
-    
-    # TODO
-end
+# step "There are some tricky bits", dir: jit_dir, section: :trickybits do
+#   codegen_json_encoders = cat("codegen/json_encoders.go")
+#
+#   "1. Traversing arbitrarily nested types (e.g. map[string]map[int][]string) without shadowing variables in scope".
+#     indent.print
+#
+#     # TODO
+#
+#   wait
+#
+#   "2. Check if a type (or a pointer to that type) implements the json.Marshaler interface and honor that (even if it is slower)".
+#     indent.print
+#
+#   # TODO
+#
+#   wait
+#
+#   file_path("github.com/marcel/jitjson/codegen/json_encoders.go")
+#
+#   codegen_json_encoders.
+#     grep("-A 23 'var jsonMarshalerType ='").
+#     grep("-v TODO").
+#     syntax_highlight.
+#     print
+#
+#   wait
+#
+#   "3. Follow pointers via reflection API to base type but ensure they are indirected when invoked in code".
+#     indent.print
+#
+#     # TODO
+# end
 
 step "Benchmarks", section: :benchmarks, dir: jit_dir do
   wait
@@ -876,6 +876,26 @@ step "Benchmarks", section: :benchmarks, dir: jit_dir do
   cat("benchmarks/benchmark_jit_test.go").
     grep("-A 26 'BenchmarkJSONJitMedia'").
     syntax_highlight.
+    print
+end
+
+step "media.Album", section: :examplealbum, dir: jit_dir do
+  
+  file_path("github.com/marcel/jitjson/fixtures/media/media.go")
+  
+  wait
+  
+  cat("fixtures/media/media.go").
+    grep("-A 162 'var ExampleAlbum'").
+    syntax_highlight.
+    print
+end
+
+step "album.json", section: :albumjson, dir: jit_dir do
+  wait
+  
+  cat("fixtures/media/example.json").
+    syntax_highlight(lang: "json").
     print
 end
 
@@ -926,6 +946,26 @@ step "Results: media.Album", section: :albumbench, dir: jit_dir do
     syntax_highlight.
     print
 
+end
+
+step "navigation.Route", section: :exampleroute, dir: jit_dir do
+  
+  file_path("github.com/marcel/jitjson/fixtures/navigation/navigation.go")
+  
+  wait
+  
+  cat("fixtures/navigation/navigation.go").
+    grep("-A 258 'var ExampleRoute'").
+    syntax_highlight.
+    print
+end
+
+step "route.json", section: :routejson, dir: jit_dir do
+  wait
+  
+  cat("fixtures/navigation/example.json").
+    syntax_highlight(lang: "json").
+    print
 end
 
 step "Results: navigation.Route", section: :routebench, dir: jit_dir do   
@@ -1001,7 +1041,7 @@ step "Memory", dir: jit_dir do
   wait
   
   sub_heading("Visualizing jitjson")
-  instruction(" 0% from bytes.makeSlice").print
+  instruction(" 0% from bytes.makeSlice").indent.print
   wait
   
   cmd "open benchmarks/pprof/jit.nav.mem.0.svg"
@@ -1227,6 +1267,5 @@ end
 step "http://github.com/marcel/jitjson", section: :end do
   title("The End", color: :closing_credits)
   puts
-  
   center("🎉  👏🏻  🎊").print
 end
